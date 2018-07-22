@@ -263,6 +263,7 @@ class ShareableToken extends StandardToken {
         LocalContractStorage.defineProperties(this, {
             profitPool: null,     
             issuedSupply: null,
+            //profit per token
             ppt: null
 
         })
@@ -272,7 +273,7 @@ class ShareableToken extends StandardToken {
     }
 
     init(name, symbol, decimals, totalSupply) {
-        super.init()
+        super.init(name, symbol, decimals, totalSupply)
         this.ppt = 0
     }
 
@@ -286,7 +287,7 @@ class ShareableToken extends StandardToken {
     }
 }
 
-class OwnerableContract extends StandardToken {
+class OwnerableContract extends ShareableToken {
     constructor() {
         super()
         LocalContractStorage.defineProperties(this, {
@@ -299,7 +300,7 @@ class OwnerableContract extends StandardToken {
     //name, symbol, decimals, totalSupply
 
     init() {
-        super.init("lost in nebulas", "lnb", "18", 1000000000000)
+        super.init("lost in nebulas", "lnb", "18", "1000000000000")
         const {
             from
         } = Blockchain.transaction
@@ -354,17 +355,24 @@ class LostInNebulasContract extends OwnerableContract {
         })
     }
 
-    getCountByValue(value) {
+    getAmountByValue(value) {
 
-        // (2a + kx)x/2 = value
-        // ak/2x^2 + ax - value = 0
+        // (2p + kx)x/2 = value
+        // kx^2 + 2px - 2value = 0
 
-        var a = price.mul(K).div(2);
-        var b = price;
-        var c = -value;
+        var a = K;
+        var b = price.mul(2);
+        var c = -value.mul(2);
 
         var x = (-b.add(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).div((a.mul(2)));
+
         return x;
+    }
+
+    getValueByAmount(amount) {
+        // (p + p - k*am)*am /2
+        var value = price.add(price).sub(K.mul(amount).mul(amount).div(2));
+        return value;
     }
 
     updateLastBuyTime() {
@@ -382,24 +390,31 @@ class LostInNebulasContract extends OwnerableContract {
         this.updateLastBuyTime()
     }
 
-    buy(referer = "") {
+    buy(referal = "") {
         var {
             from,
             value
         } = Blockchain.transaction
-        count = getCountByValue(value)        
-        if (count > 1) this.updateLastBuyTime()
+        amount = this.getAmountByValue(value)        
+        if (amount > 1) this.updateLastBuyTime()
         
         this.profitPool = this.profitPool.add(value)
         this.ppt = this.profitPool.div(this.issuedSupply)
-        this.transfer(from, count)
-        claimedProfit.set(from, claimedProfit.get(from).add(count.mul(this.ppt)))        
+        this.transfer(from, amount)  
+        price = price.add(K.mul(x));
+        claimedProfit.set(from, claimedProfit.get(from).add(amount.mul(this.ppt)))        
     }
 
-    sell() {
+    sell(amount) {
+        var {
+            from,
+        } = Blockchain.transaction
+        var value = this.getValueByAmount(amount)        
+        price = price.sub(K.mul(amount))
+        Blockchain.transfer(from, value)
+        this.claim()
+        claimedProfit.set(from, claimedProfit.get(from).sub(amount.mul(this.ppt)))      
     }
-    claim() {        
-    }    
 }
 
 module.exports = LostInNebulasContract
