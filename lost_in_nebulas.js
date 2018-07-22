@@ -262,7 +262,9 @@ class ShareableToken extends StandardToken {
         super()
         LocalContractStorage.defineProperties(this, {
             profitPool: null,     
-            issuedSupply: null       
+            issuedSupply: null,
+            ppt: null
+
         })
         LocalContractStorage.defineMapProperties(this, {
             claimedProfit: null
@@ -271,13 +273,14 @@ class ShareableToken extends StandardToken {
 
     init(name, symbol, decimals, totalSupply) {
         super.init()
+        this.ppt = 0
     }
 
     claim() {
         var {
             from
         } = Blockchain.transaction
-        var myProfit = profitPool.mul(balances.get(from)).div(issuedSupply)
+        var myProfit = ppt.mul(balances.get(from))
         Blockchain.transfer(from, myProfit.sub(claimedProfit.get(from)))
         claimedProfit = myProfit
     }
@@ -336,7 +339,6 @@ class OwnerableContract extends StandardToken {
     }
 }
 
-/
 const K = Tool.fromNasToWei(0.00000001)
 const initialTokenPrice = Tool.fromNasToWei(0.0000001)
 
@@ -366,12 +368,17 @@ class LostInNebulasContract extends OwnerableContract {
     }
 
     updateLastBuyTime() {
-        this.lastBuyTime = Date.now();;
+        this.lastBuyTime = Date.now();
     }    
 
     init() {
         this.price = initialTokenPrice
         super.init()
+        var {
+            from
+        } = Blockchain.transaction        
+        this.issuedSupply = 100
+        this.transfer(from, 100)
         this.updateLastBuyTime()
     }
 
@@ -381,8 +388,12 @@ class LostInNebulasContract extends OwnerableContract {
             value
         } = Blockchain.transaction
         count = getCountByValue(value)        
-        if (count > 1) this.updateLastBuyTime()            
+        if (count > 1) this.updateLastBuyTime()
+        
+        this.profitPool = this.profitPool.add(value)
+        this.ppt = this.profitPool.div(this.issuedSupply)
         this.transfer(from, count)
+        claimedProfit.set(from, claimedProfit.get(from).add(count.mul(this.ppt)))        
     }
 
     sell() {
