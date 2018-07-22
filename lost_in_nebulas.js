@@ -51,186 +51,6 @@ class Tool {
     }
 }
 
-/**
- * For Test Only
- */
-// Mainnet
-const basePrice = Tool.fromNasToWei(0.0001)
-const addPricePerCard = Tool.fromNasToWei(0.00001)
-// // Testnet
-//const basePrice = Tool.fromNasToWei(0.000000001)
-//const addPricePerCard = Tool.fromNasToWei(0.0000000001)
-const initialTokenPrice = Tool.fromNasToWei(10000)
-class StandardNRC721Token {
-    constructor() {
-        // Contract Need to store on-chain data in LocalContractStorage
-        LocalContractStorage.defineProperties(this, {
-            _name: null,
-            _symbol: null
-        })
-        LocalContractStorage.defineMapProperties(this, {
-            "tokenOwner": null,
-            "ownedTokensCount": null,
-            "tokenApprovals": null,
-            "operatorApprovals": {
-                parse(value) {
-                    return new Operator(value)
-                },
-                stringify(o) {
-                    return o.toString()
-                }
-            },
-        })
-    }
-
-    init(name, symbol) {
-        this._name = name
-        this._symbol = symbol
-    }
-
-    name() {
-        return this._name
-    }
-
-    symbol() {
-        return this._symbol
-    }
-
-    balanceOf(_owner) {
-        var balance = this.ownedTokensCount.get(_owner)
-        return balance
-    }
-
-    ownerOf(_tokenId) {
-        return this.tokenOwner.get(_tokenId)
-    }
-
-    approve(_to, _tokenId) {
-        var from = Blockchain.transaction.from
-
-        var owner = this.ownerOf(_tokenId)
-        if (_to == owner) {
-            throw new Error("invalid address in approve.")
-        }
-        // msg.sender == owner || isApprovedForAll(owner, msg.sender)
-        if (owner == from || this.isApprovedForAll(owner, from)) {
-            this.tokenApprovals.set(_tokenId, _to)
-            this.approveEvent(true, owner, _to, _tokenId)
-        } else {
-            throw new Error("permission denied in approve.")
-        }
-    }
-
-    getApproved(_tokenId) {
-        return this.tokenApprovals.get(_tokenId)
-    }
-
-    setApprovalForAll(_to, _approved) {
-        var from = Blockchain.transaction.from
-        if (from == _to) {
-            throw new Error("invalid address in setApprovalForAll.")
-        }
-        var operator = this.operatorApprovals.get(from) || new Operator()
-        operator.set(_to, _approved)
-        this.operatorApprovals.set(from, operator)
-    }
-
-    isApprovedForAll(_owner, _operator) {
-        var operator = this.operatorApprovals.get(_owner)
-        if (operator != null) {
-            if (operator.get(_operator) === "true") {
-                return true
-            } else {
-                return false
-            }
-        }
-    }
-
-    isApprovedOrOwner(_spender, _tokenId) {
-        var owner = this.ownerOf(_tokenId)
-        return _spender == owner || this.getApproved(_tokenId) == _spender || this.isApprovedForAll(owner, _spender)
-    }
-
-    rejectIfNotApprovedOrOwner(_tokenId) {
-        var from = Blockchain.transaction.from
-        if (!this.isApprovedOrOwner(from, _tokenId)) {
-            throw new Error("permission denied in transferFrom.")
-        }
-    }
-
-    transferFrom(_from, _to, _tokenId) {
-        var from = Blockchain.transaction.from
-        if (this.isApprovedOrOwner(from, _tokenId)) {
-            this.clearApproval(_from, _tokenId)
-            this.removeTokenFrom(_from, _tokenId)
-            this._addTokenTo(_to, _tokenId)
-            this.transferEvent(true, _from, _to, _tokenId)
-        } else {
-            throw new Error("permission denied in transferFrom.")
-        }
-    }
-
-    clearApproval(_owner, _tokenId) {
-        var owner = this.ownerOf(_tokenId)
-        if (_owner != owner) {
-            throw new Error("permission denied in clearApproval.")
-        }
-        this.tokenApprovals.del(_tokenId)
-    }
-
-    removeTokenFrom(_from, _tokenId) {
-        if (_from != this.ownerOf(_tokenId)) {
-            throw new Error("permission denied in removeTokenFrom.")
-        }
-        var tokenCount = this.ownedTokensCount.get(_from)
-        if (tokenCount < 1) {
-            throw new Error("Insufficient account balance in removeTokenFrom.")
-        }
-        this.tokenOwner.delete(_tokenId)
-        this.ownedTokensCount.set(_from, tokenCount - 1)
-    }
-
-    // These function can be directly called without underscore in the first letter
-    _addTokenTo(_to, _tokenId) {
-        this.tokenOwner.set(_tokenId, _to)
-        var tokenCount = this.ownedTokensCount.get(_to) || 0
-        this.ownedTokensCount.set(_to, tokenCount + 1)
-    }
-
-    _mint(_to, _tokenId) {
-        this._addTokenTo(_to, _tokenId)
-        this.transferEvent(true, "", _to, _tokenId)
-    }
-
-    _burn(_owner, _tokenId) {
-        this.clearApproval(_owner, _tokenId)
-        this.removeTokenFrom(_owner, _tokenId)
-        this.transferEvent(true, _owner, "", _tokenId)
-    }
-
-    transferEvent(status, _from, _to, _tokenId) {
-        Event.Trigger(this.name(), {
-            Status: status,
-            Transfer: {
-                from: _from,
-                to: _to,
-                tokenId: _tokenId
-            }
-        })
-    }
-
-    approveEvent(status, _owner, _spender, _tokenId) {
-        Event.Trigger(this.name(), {
-            Status: status,
-            Approve: {
-                owner: _owner,
-                spender: _spender,
-                tokenId: _tokenId
-            }
-        })
-    }
-}
-
 var Allowed = function (obj) {
     this.allowed = {};
     this.parse(obj);
@@ -521,46 +341,19 @@ class LostInNebulasContract extends OwnerableContract {
     constructor() {
         super()
         LocalContractStorage.defineProperties(this, {
-            drawChances: null,
-            drawPrice: null,
-            referCut: null,
-            myAddress: null,
-            shares: null,
-            totalEarnByShareAllUser: null,
-            totalEarnByReferenceAllUser: null,
-            holders: null
+            price: null,
+            referCut: null
         })
         LocalContractStorage.defineMapProperties(this, {
-            "tokenClaimed": null,
-            "shareOfHolder": null,
-            "totalEarnByShare": {
-                parse(value) {
-                    return JSON.parse(value)
-                },
-                stringify(o) {
-                    return JSON.stringify(o)
-                }
-            },
-            "totalEarnByReference": {
-                parse(value) {
-                    return JSON.parse(value)
-                },
-                stringify(o) {
-                    return JSON.stringify(o)
-                }
-            },
-            "sharePriceOf": {
-                parse(value) {
-                    return JSON.parse(value)
-                },
-                stringify(o) {
-                    return JSON.stringify(o)
-                }
-            }
         })
     }
 
-    init(initialPrice = basePrice) {
+    getCountByValue(value) {
+        count = 0
+        return count
+    }
+
+    init() {
         super.init()
     }
 
@@ -570,13 +363,16 @@ class LostInNebulasContract extends OwnerableContract {
             from,
             value
         } = Blockchain.transaction
-        if (count > 0) {
+
+        count = getCountByValue(value)
+        
+        /*if (count > 0) {
             this.triggerDrawEvent(true, from, result)
             this._sendCommissionTo(referer, actualCost)
             return result
         } else {
             throw new Error("You don't have enough token, try again with more.")
-        }                
+        }*/
     }
 
     sell() {
