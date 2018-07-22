@@ -6,7 +6,6 @@
  */
 "use strict"
 
-
 class Operator {
     constructor(obj) {
         this.operator = {}
@@ -337,42 +336,53 @@ class OwnerableContract extends StandardToken {
     }
 }
 
+/
+const K = Tool.fromNasToWei(0.00000001)
+const initialTokenPrice = Tool.fromNasToWei(0.0000001)
+
 class LostInNebulasContract extends OwnerableContract {
     constructor() {
         super()
         LocalContractStorage.defineProperties(this, {
             price: null,
-            referCut: null
+            referCut: null,
+            lastBuyTime: null,
         })
         LocalContractStorage.defineMapProperties(this, {
         })
     }
 
     getCountByValue(value) {
-        count = 0
-        return count
+
+        // (2a + kx)x/2 = value
+        // ak/2x^2 + ax - value = 0
+
+        var a = price.mul(K).div(2);
+        var b = price;
+        var c = -value;
+
+        var x = (-b.add(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).div((a.mul(2)));
+        return x;
     }
+
+    updateLastBuyTime() {
+        this.lastBuyTime = Date.now();;
+    }    
 
     init() {
+        this.price = initialTokenPrice
         super.init()
+        this.updateLastBuyTime()
     }
 
-    // referer by default is empty
     buy(referer = "") {
         var {
             from,
             value
         } = Blockchain.transaction
-
-        count = getCountByValue(value)
-        
-        /*if (count > 0) {
-            this.triggerDrawEvent(true, from, result)
-            this._sendCommissionTo(referer, actualCost)
-            return result
-        } else {
-            throw new Error("You don't have enough token, try again with more.")
-        }*/
+        count = getCountByValue(value)        
+        if (count > 1) this.updateLastBuyTime()            
+        this.transfer(from, count)
     }
 
     sell() {
