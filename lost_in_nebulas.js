@@ -277,6 +277,10 @@ class ShareableToken extends StandardToken {
         this.ppt = 0
     }
 
+    getProfitPool() {
+        return this.profitPool
+    }    
+
     claimEvent(status, _from, _value) {
         Event.Trigger(this.name(), {
             Status: status,
@@ -373,7 +377,7 @@ class LostInNebulasContract extends OwnerableContract {
         // kx^2 + 2px - 2value = 0
 
         var a = K;
-        var b = this.price.mul(2);
+        var b = (new BigNumber(this.price)).mul(2);
         var c = -value.mul(2);
 
         var x = (-b.add(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).div((a.mul(2)));
@@ -383,7 +387,7 @@ class LostInNebulasContract extends OwnerableContract {
 
     getValueByAmount(amount) {
         // (p + p - k*am)*am /2
-        var value = this.price.add(this.price).sub(K.mul(amount).mul(amount).div(2));
+        var value = (new BigNumber(this.price)).add(this.price).sub(K.mul(amount).mul(amount).div(2));
         return value;
     }
 
@@ -391,8 +395,12 @@ class LostInNebulasContract extends OwnerableContract {
         this.lastBuyTime = Date.now();
     }    
 
+    getPrice() {
+        return this.price
+    }
+
     init() {
-        this.price = initialTokenPrice
+        this.price = new BigNumber(initialTokenPrice)
         super.init()
         var {
             from
@@ -434,8 +442,8 @@ class LostInNebulasContract extends OwnerableContract {
         
         this.profitPool = this.profitPool.add(value)
         this.ppt = this.profitPool.div(this.issuedSupply)
-        this.transfer(from, amount)  
-        this.price = this.price.add(K.mul(amount))
+        this.transfer(from, amount)
+        this.price = (new BigNumber(this.price)).add(K.mul(amount))
         this.buyEvent(true, from, value, amount)
         claimedProfit.set(from, claimedProfit.get(from).add(amount.mul(this.ppt)))        
     }
@@ -445,7 +453,7 @@ class LostInNebulasContract extends OwnerableContract {
             from,
         } = Blockchain.transaction
         var value = this.getValueByAmount(amount)        
-        this.price = this.price.sub(K.mul(amount))
+        this.price = (new BigNumber(this.price)).sub(K.mul(amount))
         Blockchain.transfer(from, value)
         this.sellEvent(true, from, amount, value)
         this.claim()
