@@ -275,6 +275,7 @@ class ShareableToken extends StandardToken {
     init(name, symbol, decimals, totalSupply) {
         super.init(name, symbol, decimals, totalSupply)
         this.ppt = 0
+        this.profitPool = new BigNumber(0)
     }
 
     getProfitPool() {
@@ -295,11 +296,11 @@ class ShareableToken extends StandardToken {
         var {
             from
         } = Blockchain.transaction
-        var myProfit = ppt.mul(balances.get(from))
-        var delta = myProfit.sub(claimedProfit.get(from))
+        var myProfit = ppt.mul(this.profitPool.get(from))
+        var delta = myProfit.sub(this.claimedProfit.get(from))
         Blockchain.transfer(from, delta)
         this.claimEvent(true, from, delta)
-        claimedProfit = myProfit
+        this.claimedProfit = myProfit
     }
 }
 
@@ -357,7 +358,7 @@ class OwnerableContract extends ShareableToken {
 }
 
 const K = Tool.fromNasToWei(0.00000001)
-const initialTokenPrice = Tool.fromNasToWei(0.0000001)
+const initialTokenPrice = Tool.fromNasToWei(0.0001)
 
 class LostInNebulasContract extends OwnerableContract {
     constructor() {
@@ -378,16 +379,16 @@ class LostInNebulasContract extends OwnerableContract {
 
         var a = K;
         var b = (new BigNumber(this.price)).mul(2);
-        var c = -value.mul(2);
+        var c = (new BigNumber(0)).sub(value.mul(2));
 
-        var x = (-b.add(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).div((a.mul(2)));
+        var x = (new BigNumber(0)).sub(b).add(Math.floor(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).dividedBy((a.mul(2)));
 
         return x;
     }
 
     getValueByAmount(amount) {
         // (p + p - k*am)*am /2
-        var value = (new BigNumber(this.price)).add(this.price).sub(K.mul(amount).mul(amount).div(2));
+        var value = (new BigNumber(this.price)).add(this.price).sub(K.mul(amount).mul(amount).dividedBy(2));
         return value;
     }
 
@@ -437,27 +438,34 @@ class LostInNebulasContract extends OwnerableContract {
             from,
             value
         } = Blockchain.transaction
-        amount = this.getAmountByValue(value)        
+
+        value = new BigNumber(value)
+        var amount = this.getAmountByValue(value)        
         if (amount > 1) this.updateLastBuyTime()
         
-        this.profitPool = this.profitPool.add(value)
-        this.ppt = this.profitPool.div(this.issuedSupply)
+        this.profitPool = (new BigNumber(this.profitPool)).add(value)
+        this.ppt = (new BigNumber(this.profitPool)).dividedBy(this.issuedSupply)
         this.transfer(from, amount)
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
         this.buyEvent(true, from, value, amount)
-        claimedProfit.set(from, claimedProfit.get(from).add(amount.mul(this.ppt)))        
+        if (this.claimedProfit.get(from) == null) {
+            this.claimedProfit.set(from, new BigNumber(0))
+        }
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).add(amount.mul(this.ppt)))
     }
 
     sell(amount) {
         var {
-            from,
+            from
         } = Blockchain.transaction
+
+        amout = new BigNumber(amout)
         var value = this.getValueByAmount(amount)        
-        this.price = (new BigNumber(this.price)).sub(K.mul(amount))
+        this.price = (new BigNumber(this.price)).sub(K.mul(amount))      
         Blockchain.transfer(from, value)
         this.sellEvent(true, from, amount, value)
         this.claim()
-        claimedProfit.set(from, claimedProfit.get(from).sub(amount.mul(this.ppt)))      
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))      
     }
 }
 
