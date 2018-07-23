@@ -418,11 +418,11 @@ class LostInNebulasContract extends OwnerableContract {
             Status: status,
             Transfer: {
                 from: _from,
-                amount: _amount                
-                value: _value,                
+                amount: _amount,              
+                value: _value             
             }
         })
-    }        
+    }
 
     buy(referal = "") {
         var {
@@ -435,7 +435,7 @@ class LostInNebulasContract extends OwnerableContract {
         this.profitPool = this.profitPool.add(value)
         this.ppt = this.profitPool.div(this.issuedSupply)
         this.transfer(from, amount)  
-        price = price.add(K.mul(x))
+        this.price = this.price.add(K.mul(amount))
         this.buyEvent(true, from, value, amount)
         claimedProfit.set(from, claimedProfit.get(from).add(amount.mul(this.ppt)))        
     }
@@ -445,7 +445,7 @@ class LostInNebulasContract extends OwnerableContract {
             from,
         } = Blockchain.transaction
         var value = this.getValueByAmount(amount)        
-        price = price.sub(K.mul(amount))
+        this.price = this.price.sub(K.mul(amount))
         Blockchain.transfer(from, value)
         this.sellEvent(true, from, amount, value)
         this.claim()
