@@ -373,7 +373,7 @@ class LostInNebulasContract extends OwnerableContract {
         // kx^2 + 2px - 2value = 0
 
         var a = K;
-        var b = price.mul(2);
+        var b = this.price.mul(2);
         var c = -value.mul(2);
 
         var x = (-b.add(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).div((a.mul(2)));
@@ -383,7 +383,7 @@ class LostInNebulasContract extends OwnerableContract {
 
     getValueByAmount(amount) {
         // (p + p - k*am)*am /2
-        var value = price.add(price).sub(K.mul(amount).mul(amount).div(2));
+        var value = this.price.add(this.price).sub(K.mul(amount).mul(amount).div(2));
         return value;
     }
 
