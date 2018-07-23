@@ -277,12 +277,24 @@ class ShareableToken extends StandardToken {
         this.ppt = 0
     }
 
+    claimEvent(status, _from, _value) {
+        Event.Trigger(this.name(), {
+            Status: status,
+            Transfer: {
+                from: _from,
+                value: _value
+            }
+        })
+    }        
+
     claim() {
         var {
             from
         } = Blockchain.transaction
         var myProfit = ppt.mul(balances.get(from))
-        Blockchain.transfer(from, myProfit.sub(claimedProfit.get(from)))
+        var delta = myProfit.sub(claimedProfit.get(from))
+        Blockchain.transfer(from, delta)
+        this.claimEvent(true, from, delta)
         claimedProfit = myProfit
     }
 }
@@ -389,6 +401,28 @@ class LostInNebulasContract extends OwnerableContract {
         this.transfer(from, 100)
         this.updateLastBuyTime()
     }
+    
+    buyEvent(status, _from, _value, _amount) {
+        Event.Trigger(this.name(), {
+            Status: status,
+            Transfer: {
+                from: _from,
+                value: _value,
+                amount: _amount
+            }
+        })
+    }    
+
+    sellEvent(status, _from, _amount, _value) {
+        Event.Trigger(this.name(), {
+            Status: status,
+            Transfer: {
+                from: _from,
+                amount: _amount                
+                value: _value,                
+            }
+        })
+    }        
 
     buy(referal = "") {
         var {
@@ -401,7 +435,8 @@ class LostInNebulasContract extends OwnerableContract {
         this.profitPool = this.profitPool.add(value)
         this.ppt = this.profitPool.div(this.issuedSupply)
         this.transfer(from, amount)  
-        price = price.add(K.mul(x));
+        price = price.add(K.mul(x))
+        this.buyEvent(true, from, value, amount)
         claimedProfit.set(from, claimedProfit.get(from).add(amount.mul(this.ppt)))        
     }
 
@@ -412,6 +447,7 @@ class LostInNebulasContract extends OwnerableContract {
         var value = this.getValueByAmount(amount)        
         price = price.sub(K.mul(amount))
         Blockchain.transfer(from, value)
+        this.sellEvent(true, from, amount, value)
         this.claim()
         claimedProfit.set(from, claimedProfit.get(from).sub(amount.mul(this.ppt)))      
     }
