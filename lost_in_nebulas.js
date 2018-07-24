@@ -525,7 +525,7 @@ class LostInNebulasContract extends OwnerableContract {
         }
         this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).add(amount.mul(this.ppt)))
         this.buyEvent(true, from, value, amount)
-        
+
         var buyOrder = new Order();
         buyOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
         buyOrder.account = from;
@@ -535,7 +535,7 @@ class LostInNebulasContract extends OwnerableContract {
         buyOrder.value = value
         buyOrder.type = "buy";
 
-        this.orderList.put(this._buyOrderIndex, _buyOrder);
+        this.orderList.put(this.orderIndex, buyOrder);
         this.orderIndex = this.orderIndex.plus(1);        
     }
 
