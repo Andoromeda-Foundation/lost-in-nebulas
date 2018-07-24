@@ -514,12 +514,9 @@ class LostInNebulasContract extends OwnerableContract {
         this.profitPool = (new BigNumber(this.profitPool)).add(value)
         this.ppt = (new BigNumber(this.profitPool)).dividedBy(this._totalSupply)
         this._totalSupply = this._totalSupply.plus(amount)        
-        this.balances.set(from, (new BigNumber(this.balances.get(from))).plus(amount))
+        this.balances.set(from, (new BigNumber(this.balances.get(from) || 0)).plus(amount))
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
-        if (this.claimedProfit.get(from) == null) {
-            this.claimedProfit.set(from, new BigNumber(0))
-        }
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).add(amount.mul(this.ppt)))
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from) || 0).add(amount.mul(this.ppt)))
         this.buyEvent(true, from, value, amount)
 
         var buyOrder = new Order();
