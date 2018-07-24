@@ -520,45 +520,23 @@ class LostInNebulasContract extends OwnerableContract {
         this.ppt = (new BigNumber(this.profitPool)).dividedBy(this.issuedSupply)
         this.transfer(from, amount)
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
-        this.buyEvent(true, from, value, amount)
         if (this.claimedProfit.get(from) == null) {
             this.claimedProfit.set(from, new BigNumber(0))
         }
         this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).add(amount.mul(this.ppt)))
-
+        this.buyEvent(true, from, value, amount)
+        
         var buyOrder = new Order();
         buyOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
         buyOrder.account = from;
         var now = Date.now();
         buyOrder.timestamp = parseInt(now);
-        buyOrder.amount = parseFloat(issueTokenAmount.plus(transferTokenAmount).div(new BigNumber(10).pow(18)).toString(10));
-        buyOrder.value = parseFloat(depositedValue.plus(insuredValue).div(new BigNumber(10).pow(18)).toString(10));
-        buyOrder.price = buyOrder.value / buyOrder.amount;
-        buyOrder.crr = parseFloat(crr.toString(10)).toFixed(4);
-        buyOrder.type = 0;
+        buyOrder.amount = amount
+        buyOrder.value = value
+        buyOrder.type = "buy";
 
-        var player = this.Player.get(from);
-        if (!(player instanceof Player)) {
-            player = new Player();
-            player.playerId = parseInt(this._playerNum.toString(10));
-            player.firstSeen = parseInt(now / 1000);
-            player.account = from;
-            this._playerNum = this._playerNum.plus(1);
-        }
-        var playerBalance = this.balances.get(from) || new BigNumber(0);
-        player.tokenBalance = parseFloat(playerBalance.div(new BigNumber(10).pow(18)).toString(10));
-        player.buyAmount = player.buyAmount + buyOrder.amount;
-        player.buyValue = player.buyValue + buyOrder.value;
-        this.Player.put(from, player);
-
-        buyOrder.playerId = player.playerId;
-        _buyOrder.push(buyOrder);
-        this.buyOrder.put(this._buyOrderIndex, _buyOrder);
-        if (_buyOrder.length >= this._maxOrderItems) {
-            this._buyOrderIndex = this._buyOrderIndex.plus(1);
-        }
-
-        return buyOrder;        
+        this.orderList.put(this._buyOrderIndex, _buyOrder);
+        this.orderIndex = this.orderIndex.plus(1);        
     }
 
     sell(amount) {
