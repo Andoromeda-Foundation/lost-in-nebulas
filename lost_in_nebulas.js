@@ -45,9 +45,6 @@ class Tool {
             return new BigNumber(value).dividedBy("1000000000000000000")
         }
     }
-    static getRandomInt(min, max) {
-        return Math.floor(Math.random() * (max - min)) + min;
-    }
 }
 
 var Allowed = function (obj) {
@@ -161,7 +158,7 @@ StandardToken.prototype = {
         }
 
         var from = Blockchain.transaction.from;
-        var balance = this.balances.get(from) || new BigNumber(0);
+        var balance = new BigNumber(this.balances.get(from)) || new BigNumber(0);
 
         if (balance.lt(value)) {
             throw new Error("transfer failed.");
@@ -176,10 +173,10 @@ StandardToken.prototype = {
 
     transferFrom: function (from, to, value) {
         var spender = Blockchain.transaction.from;
-        var balance = this.balances.get(from) || new BigNumber(0);
+        var balance = new BigNumber(this.balances.get(from)) || new BigNumber(0);
 
         var allowed = this.allowed.get(from) || new Allowed();
-        var allowedValue = allowed.get(spender) || new BigNumber(0);
+        var allowedValue = new BigNumber(allowed.get(spender)) || new BigNumber(0);
         value = new BigNumber(value);
 
         if (value.gte(0) && balance.gte(value) && allowedValue.gte(value)) {
@@ -277,10 +274,14 @@ class ShareableToken extends StandardToken {
     }
 
     getProfitPerToken() {
-        return (new BigNumber(this.calculateProfit)).dividedBy(this._totalSupply)
+        if (new BigNumber(this._totalSupply).gt(0)) {
+            return (new BigNumber(this.calculateProfit)).dividedBy(this._totalSupply)
+        } else {
+            return new BigNumber(0);
+        }
     }
 
-    getAvailableShare() {
+    getAvailableShare(from) {
         var current_ppt = this.getProfitPerToken()
         var claimed_ppt = this.claimedPPT.get(from)
         return current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
@@ -447,6 +448,19 @@ class LostInNebulasContract extends OwnerableContract {
         })
     }
 
+    init() {
+        super.init()
+        var {
+            from
+        } = Blockchain.transaction
+        this.orderIndex = new BigNumber(0)
+        this.price = new BigNumber(initialTokenPrice)
+        this.bonusPool = new BigNumber(0)
+        this.shareCut = new BigNumber(2) // 0.5
+        this.referCut = new BigNumber(5) // 0.2 of shareCut.
+        this.updateLastBuyTime()
+    }
+    
     getAmountByValue(value) {
         // (2p + kx)x/2 = value
         // kx^2 + 2px - 2value = 0
@@ -484,18 +498,6 @@ class LostInNebulasContract extends OwnerableContract {
         return this.orderList.get(new BigNumber(_index)) || [];
     }
 
-    init() {
-        super.init()
-        var {
-            from
-        } = Blockchain.transaction
-        this.orderIndex = new BigNumber(0)
-        this.price = new BigNumber(initialTokenPrice)
-        this.bonusPool = new BigNumber(0)
-        this.shareCut = new BigNumber(2) // 0.5
-        this.referCut = new BigNumber(5) // 0.2 of shareCut.
-        this.updateLastBuyTime()
-    }
 
     updateLastBuyTime() {
         this.lastBuyTime = Date.now();
@@ -553,7 +555,7 @@ class LostInNebulasContract extends OwnerableContract {
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
 
         var buyOrder = new Order();
-        buyOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
+        buyOrder.orderId = parseInt(new BigNumber(this.orderIndex).plus(1).toString(10));
         buyOrder.account = from;
         var now = Date.now();
         buyOrder.timestamp = parseInt(now);
