@@ -283,7 +283,7 @@ class ShareableToken extends StandardToken {
 
     getAvailableShare(from) {
         var current_ppt = this.getProfitPerToken()
-        var claimed_ppt = this.claimedPPT.get(from)
+        var claimed_ppt = this.claimedPPT.get(from) || new BigNumber(0)
         return current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
     }
 
@@ -299,7 +299,7 @@ class ShareableToken extends StandardToken {
 
     claimFrom(from) {
         var current_ppt = this.getProfitPerToken()
-        var claimed_ppt = this.claimedPPT.get(from)
+        var claimed_ppt = this.claimedPPT.get(from) || new BigNumber(0)
         var delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
         this.claimedPPT.set(from, current_ppt)
         Blockchain.transfer(from, delta_share)
