@@ -481,7 +481,7 @@ class LostInNebulasContract extends OwnerableContract {
         this.shareCut = new BigNumber(2) // 0.5
         this.referCut = new BigNumber(5) // 0.2 of shareCut.
         this.MAX_TIME = 86400
-        this.updateLastBuyTime()
+        this.lastBuyTime = this._getNow()
     }
 
     claim() {
@@ -543,8 +543,8 @@ class LostInNebulasContract extends OwnerableContract {
 
     updateLastBuyTime(times) {
         this.lastBuyTime = new BigNumber(30 * times)
-        if (this.lastBuyTime.gte(this._getNow().add(this.MAX_TIME))) {
-            this.lastBuyTime = this._getNow().add(this.MAX_TIME)
+        if (this.lastBuyTime.gte(this._getNow())) {
+            this.lastBuyTime = this._getNow()
         }
     }
 
