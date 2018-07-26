@@ -118,7 +118,7 @@ StandardToken.prototype = {
         this._name = name;
         this._symbol = symbol;
         this._decimals = decimals || 0;
-        this._totalSupply = new BigNumber(totalSupply).mul(new BigNumber(10).pow(decimals));
+        this._totalSupply = 100;
 
         var from = Blockchain.transaction.from;
         this.balances.set(from, this._totalSupply);
@@ -477,8 +477,6 @@ class LostInNebulasContract extends OwnerableContract {
         return value;
     }
 
-  
-
     getLastBuyTime() {
         return this.lastBuyTime
     }
@@ -502,8 +500,6 @@ class LostInNebulasContract extends OwnerableContract {
             from
         } = Blockchain.transaction        
         this.orderIndex = new BigNumber(0);        
-        this.issuedSupply = 100
-        this.transfer(from, 100)
         this.updateLastBuyTime()
     }
 
@@ -544,15 +540,13 @@ class LostInNebulasContract extends OwnerableContract {
         if (amount > 1) this.updateLastBuyTime()
         
         this.profitPool = (new BigNumber(this.profitPool)).add(value)
-        this.ppt = (new BigNumber(this.profitPool)).dividedBy(this.issuedSupply)
-        this.transfer(from, amount)
+        this.ppt = (new BigNumber(this.profitPool)).dividedBy(this._totalSupply)
+        this._totalSupply = this._totalSupply.plus(amount)        
+        this.balances.set(from, (new BigNumber(this.balances.get(from) || 0)).plus(amount))
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
-        if (this.claimedProfit.get(from) == null) {
-            this.claimedProfit.set(from, new BigNumber(0))
-        }
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).add(amount.mul(this.ppt)))
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from) || 0).add(amount.mul(this.ppt)))
         this.buyEvent(true, from, value, amount)
-        
+
         var buyOrder = new Order();
         buyOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
         buyOrder.account = from;
@@ -573,11 +567,15 @@ class LostInNebulasContract extends OwnerableContract {
 
         Blockchain.transfer(from, value)
         amout = new BigNumber(amout)
-        var value = this.getValueByAmount(amount)        
-        this.price = (new BigNumber(this.price)).sub(K.mul(amount))
+        var value = this.getValueByAmount(amount)            
+        Blockchain.transfer(from, value)
+        this._totalSupply = this._totalSupply.sub(amount)        
+        this.balances.set(from, (new BigNumber(this.balances.get(from))).sub(amount))
+        this.price = (new BigNumber(this.price)).sub(K.mul(amount))          
         this.claim()
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))    
-        
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))
+        this.sellEvent(true, from, amount, value)
+
         var sellOrder = new Order();
         sellOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
         sellOrder.account = from;
