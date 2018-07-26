@@ -277,7 +277,7 @@ class ShareableToken extends StandardToken {
     }
 
     getProfitPerToken() {
-        return this.calculateProfit.dividedBy(this._totalSupply)
+        return (new BigNumber(this.calculateProfit)).dividedBy(this._totalSupply)
     }
 
     getAvailableShare() {
