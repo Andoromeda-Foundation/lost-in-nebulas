@@ -261,7 +261,8 @@ class ShareableToken extends StandardToken {
     constructor() {
         super()
         LocalContractStorage.defineProperties(this, {
-            profitPool: null,     
+            profitPool: null,
+            totalProfitPool: null,
             issuedSupply: null,
             //profit per token
             ppt: null
@@ -274,22 +275,23 @@ class ShareableToken extends StandardToken {
 
     init(name, symbol, decimals, totalSupply) {
         super.init(name, symbol, decimals, totalSupply)
-        this.ppt = 0
         this.profitPool = new BigNumber(0)
+        this.ppt = new BigNumber(0)
+        this.issuedSupply = new BigNumber(0)
+        this.totalProfitPool = new BigNumber(0)
     }
 
     getProfitPool() {
         return this.profitPool
     }
 
-    getMyProfit(from) {
-        return ppt.mul(this.profitPool.get(from))
+    getProfitPerToken() {
+        return this.profitPool.div(this.issuedSupply)// ppt的计算还是有问题
     }
 
-    getMyProfitDelta(from) {
-        var myProfit = this.getMyProfit(from)
-        return myProfit.sub(this.claimedProfit.get(from))
-    }    
+    getMyProfit(from) {
+        return this.ppt.mul(this.balanceOf(from))
+    }
 
     getClaimedProfit(from) {
         return this.claimedProfit.get(from)
@@ -305,14 +307,33 @@ class ShareableToken extends StandardToken {
         })
     }        
 
+    claimFrom(from) {
+        var profit = this.getMyProfit(from)
+        var claimed_profit = this.getClaimedProfit(from)
+        var delta = claimed_profit.sub(profit);
+        this.claimedProfit.set(from, profit)
+        Blockchain.transfer(from, delta)
+        this.claimEvent(true, from, delta)
+
+    }
+
     claim() {
         var {
             from
         } = Blockchain.transaction
-        var delta = this.getMyProfitDelta()
-        Blockchain.transfer(from, delta)
-        this.claimEvent(true, from, delta)
-        this.claimedProfit = this.getMyProfit()
+        this.claimFrom(from)
+    }
+
+    transfer(to, value) {
+        this.claim()
+        this.claimFrom(to)
+        super.transfer(to, value)
+    }
+
+    transferFrom(from, to, value) {
+        this.claimFrom(from)
+        this.claimFrom(to)
+        super.transferFrom(from, to, value)
     }
 }
 
@@ -323,7 +344,7 @@ class OwnerableContract extends ShareableToken {
             owner: null
         })
         LocalContractStorage.defineMapProperties(this, {
-            "admins": null
+            admins: null
         })
     }
     //name, symbol, decimals, totalSupply
@@ -363,10 +384,16 @@ class OwnerableContract extends ShareableToken {
         return this.admins
     }
 
-    setAdmins(address) {
+    grantAdmins(address) {
         this.onlyContractOwner()
         this.admins.set(address, "true")
     }
+
+    revokeAdmins(address) {
+        this.onlyContractOwner()
+        this.admins.set(address, "false")
+    }
+
 }
 
 const K = Tool.fromNasToWei(0.000000001)
@@ -535,7 +562,7 @@ class LostInNebulasContract extends OwnerableContract {
         buyOrder.value = value
         buyOrder.type = "buy";
 
-        this.orderList.put(this._buyOrderIndex, _buyOrder);
+        this.orderList.put(this.orderIndex, buyOrder);
         this.orderIndex = this.orderIndex.plus(1);        
     }
 
@@ -544,13 +571,25 @@ class LostInNebulasContract extends OwnerableContract {
             from
         } = Blockchain.transaction
 
+        Blockchain.transfer(from, value)
         amout = new BigNumber(amout)
         var value = this.getValueByAmount(amount)        
-        this.price = (new BigNumber(this.price)).sub(K.mul(amount))      
-        Blockchain.transfer(from, value)
-        this.sellEvent(true, from, amount, value)
+        this.price = (new BigNumber(this.price)).sub(K.mul(amount))
         this.claim()
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))      
+        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))    
+        
+        var sellOrder = new Order();
+        sellOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
+        sellOrder.account = from;
+        var now = Date.now();
+        sellOrder.timestamp = parseInt(now);
+        sellOrder.amount = amount
+        sellOrder.value = value
+        sellOrder.type = "sell";
+
+        this.orderList.put(this.orderIndex, sellOrder);
+        this.orderIndex = this.orderIndex.plus(1);  
+        this.sellEvent(true, from, amount, value)  
     }
 }
 
