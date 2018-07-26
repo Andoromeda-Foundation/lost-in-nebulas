@@ -424,7 +424,7 @@ class LostInNebulasContract extends OwnerableContract {
         super()
         LocalContractStorage.defineProperties(this, {
             price: null,
-            referCut: new ,    // 0.2 of share Cut
+            referCut: new BigNumber(5),    // 0.2 of share Cut
             lastBuyTime: null,
             shareCut: new BigNumber(2),    // 0.5
             awardPool: null,
