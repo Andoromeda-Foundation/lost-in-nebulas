@@ -6,6 +6,15 @@
  */
 "use strict"
 
+const BigNumberStorageDescriptor = {
+    parse(value) {
+        return new BigNumber(value);
+    },
+    stringify(o) {
+        return o.toString(10);
+    }
+}
+
 class Operator {
     constructor(obj) {
         this.operator = {}
@@ -265,7 +274,7 @@ class ShareableToken extends StandardToken {
             totalProfitPool: null,
             issuedSupply: null,
             //profit per token
-            ppt: null
+            ppt: BigNumberStorageDescriptor
 
         })
         LocalContractStorage.defineMapProperties(this, {
