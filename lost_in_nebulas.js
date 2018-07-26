@@ -263,7 +263,8 @@ class ShareableToken extends StandardToken {
             calculateProfit: null
         })
         LocalContractStorage.defineMapProperties(this, {
-            claimedPPT: null
+            claimedPPT: null,
+            claimedTotalProfit: null
         })
     }
 
@@ -271,6 +272,10 @@ class ShareableToken extends StandardToken {
         super.init(name, symbol, decimals, totalSupply)
         this.profitPool = new BigNumber(0)
         this.calculateProfit = new BigNumber(0)
+    }
+
+    getProfitPool() {
+        return new BigNumber(this.profitPool)
     }
 
     getProfitPerToken() {
@@ -285,6 +290,20 @@ class ShareableToken extends StandardToken {
         var current_ppt = this.getProfitPerToken()
         var claimed_ppt = this.claimedPPT.get(from) || new BigNumber(0)
         return current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
+    }
+
+    getMyProfit() {
+        var {
+            from
+        } = Blockchain.transaction
+        return this.getAvailableShare(from)
+    }
+
+    getClaimedProfit() {
+        var {
+            from
+        } = Blockchain.transaction
+        return this.claimedTotalProfit.get(from) || 0
     }
 
     claimEvent(status, _from, _value) {
@@ -303,6 +322,7 @@ class ShareableToken extends StandardToken {
         var delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
         this.claimedPPT.set(from, current_ppt)
         Blockchain.transfer(from, delta_share)
+        this.claimedTotalProfit = new BigNumber(this.claimedTotalProfit.get(from) || 0).add(delta_share)
         this.claimEvent(true, from, delta_share)
     }
 
