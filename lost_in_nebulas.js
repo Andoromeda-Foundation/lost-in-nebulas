@@ -118,7 +118,7 @@ StandardToken.prototype = {
         this._name = name;
         this._symbol = symbol;
         this._decimals = decimals || 0;
-        this._totalSupply = 100;
+        this._totalSupply = totalSupply;
 
         var from = Blockchain.transaction.from;
         this.balances.set(from, this._totalSupply);
@@ -262,8 +262,7 @@ class ShareableToken extends StandardToken {
         super()
         LocalContractStorage.defineProperties(this, {
             profitPool: null,
-            issuedSupply: null,
-            // Profit per token * issuedSupply.
+            // Profit per token * _totalSupply.
             calculateProfit: null
         })
         LocalContractStorage.defineMapProperties(this, {
@@ -274,12 +273,11 @@ class ShareableToken extends StandardToken {
     init(name, symbol, decimals, totalSupply) {
         super.init(name, symbol, decimals, totalSupply)
         this.profitPool = new BigNumber(0)
-        this.issuedSupply = new BigNumber(0)
         this.calculateProfit = new BigNumber(0)
     }
 
     getProfitPerToken() {
-        return this.calculateProfit.dividedBy(this.issuedSupply)
+        return this.calculateProfit.dividedBy(this._totalSupply)
     }
 
     getAvailableShare() {
@@ -340,7 +338,7 @@ class OwnerableContract extends ShareableToken {
     //name, symbol, decimals, totalSupply
 
     init() {
-        super.init("lost in nebulas", "lnb", "18", "1000000000000")
+        super.init("lost in nebulas", "lnb", "18", "0")
         const {
             from
         } = Blockchain.transaction
@@ -544,7 +542,6 @@ class LostInNebulasContract extends OwnerableContract {
         this.profitPool = (new BigNumber(this.profitPool)).plus(profit)
 
         this._totalSupply = new BigNumber(this._totalSupply).plus(amount)
-        this.issuedSupply = new BigNumber(this._totalSupply)
         this.balances.set(from, (new BigNumber(this.balances.get(from) || 0)).plus(amount))
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
 
@@ -579,7 +576,6 @@ class LostInNebulasContract extends OwnerableContract {
         }
         this.awardPool = new BigNumber(this.awardPool).sub(value)
         this._totalSupply = new BigNumber(this._totalSupply).sub(amount)
-        this.issuedSupply = new BigNumber(this._totalSupply)
         this.balances.set(from, (new BigNumber(this.balances.get(from))).sub(amount))
         this.price = (new BigNumber(this.price)).sub(K.mul(amount))
 
