@@ -322,7 +322,7 @@ class ShareableToken extends StandardToken {
         var delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
         this.claimedPPT.set(from, current_ppt)
         Blockchain.transfer(from, delta_share)
-        this.claimedTotalProfit = new BigNumber(this.claimedTotalProfit.get(from) || 0).add(delta_share)
+        this.claimedTotalProfit.set(from, new BigNumber(this.claimedTotalProfit.get(from) || 0).add(delta_share))
         this.claimEvent(true, from, delta_share)
     }
 
@@ -542,15 +542,15 @@ class LostInNebulasContract extends OwnerableContract {
     }
 
     updateLastBuyTime(times) {
-        this.lastBuyTime = new BigNumber(30 * times)
-        if (this.lastBuyTime.gte(this._getNow())) {
+        this.lastBuyTime = new BigNumber(this.lastBuyTime).add(Math.floor(30 * times))
+        if (new BigNumber(this.lastBuyTime).gte(this._getNow())) {
             this.lastBuyTime = this._getNow()
         }
     }
 
     isRoundOver() {
         let active = new BigNumber(this.lastBuyTime).add(this.MAX_TIME)
-        return active.gte(this._getNow())
+        return !active.gte(this._getNow())
     }
 
     buyEvent(status, _from, _value, _amount) {
