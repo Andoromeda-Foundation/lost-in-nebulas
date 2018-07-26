@@ -447,6 +447,8 @@ class LostInNebulasContract extends OwnerableContract {
             lastBuyTime: null,
             shareCut: new BigNumber(2),    // 0.5
             bonusPool: null,
+            MAX_TIME: null,
+            lastBuyer: null,
             orderIndex: {
                 parse: function (value) {
                     return new BigNumber(value);
@@ -478,7 +480,20 @@ class LostInNebulasContract extends OwnerableContract {
         this.bonusPool = new BigNumber(0)
         this.shareCut = new BigNumber(2) // 0.5
         this.referCut = new BigNumber(5) // 0.2 of shareCut.
+        this.MAX_TIME = 86400
         this.updateLastBuyTime()
+    }
+
+    claim() {
+        super.claim()
+        if (this.isRoundOver() && (from == this.lastBuyer)) {
+            Blockchain.transfer(from, new BigNumber(this.bonusPool))
+            this.bonusPool = new BigNumber(0)
+        }
+    }
+
+    getLastBuyer() {
+        return this.lastBuyer
     }
     
     getAmountByValue(value) {
@@ -502,6 +517,10 @@ class LostInNebulasContract extends OwnerableContract {
         return this.lastBuyTime
     }
 
+    getActiveTime() {
+        return new BigNumber(this.lastBuyTime).add(this.MAX_TIME)
+    }
+
     getBonusPool() {
         return this.bonusPool
     }
@@ -518,13 +537,20 @@ class LostInNebulasContract extends OwnerableContract {
         return this.orderList.get(new BigNumber(_index)) || [];
     }
 
+    _getNow() {
+        return new BigNumber(Math.floor(Date.parse(new Date()) / 1000))
+    }
 
-    updateLastBuyTime() {
-        this.lastBuyTime = Date.now();
+    updateLastBuyTime(times) {
+        this.lastBuyTime = new BigNumber(30 * times)
+        if (this.lastBuyTime.gte(this._getNow().add(this.MAX_TIME))) {
+            this.lastBuyTime = this._getNow().add(this.MAX_TIME)
+        }
     }
 
     isRoundOver() {
-        return false;
+        let active = new BigNumber(this.lastBuyTime).add(this.MAX_TIME)
+        return active.gte(this._getNow())
     }
 
     buyEvent(status, _from, _value, _amount) {
@@ -555,11 +581,20 @@ class LostInNebulasContract extends OwnerableContract {
             value
         } = Blockchain.transaction
 
+        if (this.isRoundOver()) {
+            throw Error("Game over")
+        }
+
         this.claim()  // claim share before every buy.
 
         value = new BigNumber(value)
+
+        if (value.gte(1)) {
+            this.lastBuyer = from
+        }
+
         var amount = this.getAmountByValue(value)
-        if (amount > 1) this.updateLastBuyTime()
+        this.updateLastBuyTime(amount)
         var profit = value.dividedBy(this.shareCut)
         this.bonusPool = new BigNumber(this.bonusPool).add(value.sub(profit))  // half to bonus pool
         if (referal !== "") {
@@ -592,6 +627,10 @@ class LostInNebulasContract extends OwnerableContract {
         var {
             from
         } = Blockchain.transaction
+
+        if (this.isRoundOver()) {
+            throw Error("Game over")
+        }
 
         this.claim()
 
