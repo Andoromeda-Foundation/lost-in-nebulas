@@ -425,7 +425,7 @@ class LostInNebulasContract extends OwnerableContract {
             referCut: new BigNumber(5),    // 0.2 of share Cut
             lastBuyTime: null,
             shareCut: new BigNumber(2),    // 0.5
-            awardPool: null,
+            bonusPool: null,
             orderIndex: {
                 parse: function (value) {
                     return new BigNumber(value);
@@ -448,7 +448,6 @@ class LostInNebulasContract extends OwnerableContract {
     }
 
     getAmountByValue(value) {
-
         // (2p + kx)x/2 = value
         // kx^2 + 2px - 2value = 0
         var a = K;
@@ -467,6 +466,10 @@ class LostInNebulasContract extends OwnerableContract {
 
     getLastBuyTime() {
         return this.lastBuyTime
+    }
+
+    getBonusPool() {
+        return this.bonusPool
     }
 
     getPrice() {
@@ -488,7 +491,7 @@ class LostInNebulasContract extends OwnerableContract {
         } = Blockchain.transaction
         this.orderIndex = new BigNumber(0)
         this.price = new BigNumber(initialTokenPrice)
-        this.awardPool = new BigNumber(0)
+        this.bonusPool = new BigNumber(0)
         this.shareCut = new BigNumber(2) // 0.5
         this.referCut = new BigNumber(5) // 0.2 of shareCut.
         this.updateLastBuyTime()
@@ -496,6 +499,10 @@ class LostInNebulasContract extends OwnerableContract {
 
     updateLastBuyTime() {
         this.lastBuyTime = Date.now();
+    }
+
+    isRoundOver() {
+        return false;
     }
 
     buyEvent(status, _from, _value, _amount) {
@@ -532,7 +539,7 @@ class LostInNebulasContract extends OwnerableContract {
         var amount = this.getAmountByValue(value)
         if (amount > 1) this.updateLastBuyTime()
         var profit = value.dividedBy(this.shareCut)
-        this.awardPool = new BigNumber(this.awardPool).add(value.sub(profit))  // half to award pool
+        this.bonusPool = new BigNumber(this.bonusPool).add(value.sub(profit))  // half to bonus pool
         if (referal !== "") {
             var referal_bonus = profit.dividedBy(this.referCut)
             Blockchain.transfer(referal, referal_bonus)
@@ -568,13 +575,13 @@ class LostInNebulasContract extends OwnerableContract {
 
         amount = new BigNumber(amount)
         var value = this.getValueByAmount(amount)
-        value = value.sub(value.dividedBy(this.shareCut))  // only return award pool
+        value = value.sub(value.dividedBy(this.shareCut))  // only return bonus pool
 
         if (!new BigNumber(this.balances.get(from)).gte(amount)) {
             // Check amount.
             throw Error("amount not enough.")
         }
-        this.awardPool = new BigNumber(this.awardPool).sub(value)
+        this.bonusPool = new BigNumber(this.bonusPool).sub(value)
         this._totalSupply = new BigNumber(this._totalSupply).sub(amount)
         this.balances.set(from, (new BigNumber(this.balances.get(from))).sub(amount))
         this.price = (new BigNumber(this.price)).sub(K.mul(amount))
