@@ -262,39 +262,30 @@ class ShareableToken extends StandardToken {
         super()
         LocalContractStorage.defineProperties(this, {
             profitPool: null,
-            totalProfitPool: null,
             issuedSupply: null,
-            //profit per token
-            ppt: null
-
+            // Profit per token * issuedSupply.
+            calculateProfit: null
         })
         LocalContractStorage.defineMapProperties(this, {
-            claimedProfit: null
+            claimedPPT: null
         })
     }
 
     init(name, symbol, decimals, totalSupply) {
         super.init(name, symbol, decimals, totalSupply)
         this.profitPool = new BigNumber(0)
-        this.ppt = new BigNumber(0)
         this.issuedSupply = new BigNumber(0)
-        this.totalProfitPool = new BigNumber(0)
-    }
-
-    getProfitPool() {
-        return this.profitPool
+        this.calculateProfit = new BigNumber(0)
     }
 
     getProfitPerToken() {
-        return this.profitPool.div(this.issuedSupply)// ppt的计算还是有问题
+        return this.calculateProfit.dividedBy(this.issuedSupply)
     }
 
-    getMyProfit(from) {
-        return this.ppt.mul(this.balanceOf(from))
-    }
-
-    getClaimedProfit(from) {
-        return this.claimedProfit.get(from)
+    getAvailableShare() {
+        var current_ppt = this.getProfitPerToken()
+        var claimed_ppt = this.claimedPPT.get(from)
+        return current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
     }
 
     claimEvent(status, _from, _value) {
@@ -305,16 +296,15 @@ class ShareableToken extends StandardToken {
                 value: _value
             }
         })
-    }        
+    }
 
     claimFrom(from) {
-        var profit = this.getMyProfit(from)
-        var claimed_profit = this.getClaimedProfit(from)
-        var delta = claimed_profit.sub(profit);
-        this.claimedProfit.set(from, profit)
-        Blockchain.transfer(from, delta)
-        this.claimEvent(true, from, delta)
-
+        var current_ppt = this.getProfitPerToken()
+        var claimed_ppt = this.claimedPPT.get(from)
+        var delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
+        this.claimedPPT.set(from, current_ppt)
+        Blockchain.transfer(from, delta_share)
+        this.claimEvent(true, from, delta_share)
     }
 
     claim() {
@@ -399,16 +389,16 @@ class OwnerableContract extends ShareableToken {
 const K = Tool.fromNasToWei(0.000000001)
 const initialTokenPrice = Tool.fromNasToWei(0.0001)
 
-var Order = function(obj) {
+var Order = function (obj) {
     this.parse(obj);
 };
 
 Order.prototype = {
-    toString: function() {
+    toString: function () {
         return JSON.stringify(this);
     },
 
-    parse: function(obj) {
+    parse: function (obj) {
         if (typeof obj != "undefined") {
             var data = JSON.parse(obj);
             this.orderId = data.orderId;
@@ -434,26 +424,28 @@ class LostInNebulasContract extends OwnerableContract {
         super()
         LocalContractStorage.defineProperties(this, {
             price: null,
-            referCut: null,
+            referCut: new ,    // 0.2 of share Cut
             lastBuyTime: null,
+            shareCut: new BigNumber(2),    // 0.5
+            awardPool: null,
             orderIndex: {
-                parse: function(value) {
+                parse: function (value) {
                     return new BigNumber(value);
                 },
-                stringify: function(o) {
+                stringify: function (o) {
                     return o.toString(10);
                 }
-            }         
+            }
         })
         LocalContractStorage.defineMapProperties(this, {
             orderList: {
-                parse: function(value) {
+                parse: function (value) {
                     return [].concat(JSON.parse(value));
                 },
-                stringify: function(o) {
+                stringify: function (o) {
                     return JSON.stringify(o);
                 }
-            }            
+            }
         })
     }
 
@@ -461,11 +453,9 @@ class LostInNebulasContract extends OwnerableContract {
 
         // (2p + kx)x/2 = value
         // kx^2 + 2px - 2value = 0
-
         var a = K;
         var b = (new BigNumber(this.price)).mul(2);
         var c = (new BigNumber(0)).sub(value.mul(2));
-
         var x = (new BigNumber(0)).sub(b).add(Math.floor(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).dividedBy((a.mul(2)));
 
         return x;
@@ -494,19 +484,22 @@ class LostInNebulasContract extends OwnerableContract {
     }
 
     init() {
-        this.price = new BigNumber(initialTokenPrice)
         super.init()
         var {
             from
-        } = Blockchain.transaction        
-        this.orderIndex = new BigNumber(0);        
+        } = Blockchain.transaction
+        this.orderIndex = new BigNumber(0)
+        this.price = new BigNumber(initialTokenPrice)
+        this.awardPool = new BigNumber(0)
+        this.shareCut = new BigNumber(2) // 0.5
+        this.referCut = new BigNumber(5) // 0.2 of shareCut.
         this.updateLastBuyTime()
     }
 
     updateLastBuyTime() {
         this.lastBuyTime = Date.now();
-    }    
-    
+    }
+
     buyEvent(status, _from, _value, _amount) {
         Event.Trigger(this.name(), {
             Status: status,
@@ -516,15 +509,15 @@ class LostInNebulasContract extends OwnerableContract {
                 amount: _amount
             }
         })
-    }    
+    }
 
     sellEvent(status, _from, _amount, _value) {
         Event.Trigger(this.name(), {
             Status: status,
             Transfer: {
                 from: _from,
-                amount: _amount,              
-                value: _value             
+                amount: _amount,
+                value: _value
             }
         })
     }
@@ -535,17 +528,25 @@ class LostInNebulasContract extends OwnerableContract {
             value
         } = Blockchain.transaction
 
+        this.claim()  // claim share before every buy.
+
         value = new BigNumber(value)
-        var amount = this.getAmountByValue(value)        
+        var amount = this.getAmountByValue(value)
         if (amount > 1) this.updateLastBuyTime()
-        
-        this.profitPool = (new BigNumber(this.profitPool)).add(value)
-        this.ppt = (new BigNumber(this.profitPool)).dividedBy(this._totalSupply)
-        this._totalSupply = this._totalSupply.plus(amount)        
+        var profit = value.dividedBy(this.shareCut)
+        this.awardPool = new BigNumber(this.awardPool).add(value.sub(profit))  // half to award pool
+        if (referal !== "") {
+            var referal_bonus = profit.dividedBy(this.referCut)
+            Blockchain.transfer(referal, referal_bonus)
+            profit = profit.sub(referal_bonus)
+        }
+        this.calculateProfit = new BigNumber(this.calculateProfit).add(this.getProfitPerToken().mul(amount)).plus(profit)
+        this.profitPool = (new BigNumber(this.profitPool)).plus(profit)
+
+        this._totalSupply = new BigNumber(this._totalSupply).plus(amount)
+        this.issuedSupply = new BigNumber(this._totalSupply)
         this.balances.set(from, (new BigNumber(this.balances.get(from) || 0)).plus(amount))
         this.price = (new BigNumber(this.price)).add(K.mul(amount))
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from) || 0).add(amount.mul(this.ppt)))
-        this.buyEvent(true, from, value, amount)
 
         var buyOrder = new Order();
         buyOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
@@ -557,7 +558,8 @@ class LostInNebulasContract extends OwnerableContract {
         buyOrder.type = "buy";
 
         this.orderList.put(this.orderIndex, buyOrder);
-        this.orderIndex = this.orderIndex.plus(1);        
+        this.orderIndex = this.orderIndex.plus(1);
+        this.buyEvent(true, from, value, amount)
     }
 
     sell(amount) {
@@ -565,16 +567,21 @@ class LostInNebulasContract extends OwnerableContract {
             from
         } = Blockchain.transaction
 
-        Blockchain.transfer(from, value)
-        amout = new BigNumber(amout)
-        var value = this.getValueByAmount(amount)            
-        Blockchain.transfer(from, value)
-        this._totalSupply = this._totalSupply.sub(amount)        
-        this.balances.set(from, (new BigNumber(this.balances.get(from))).sub(amount))
-        this.price = (new BigNumber(this.price)).sub(K.mul(amount))          
         this.claim()
-        this.claimedProfit.set(from, new BigNumber(this.claimedProfit.get(from)).sub(amount.mul(this.ppt)))
-        this.sellEvent(true, from, amount, value)
+
+        amount = new BigNumber(amount)
+        var value = this.getValueByAmount(amount)
+        value = value.sub(value.dividedBy(this.shareCut))  // only return award pool
+
+        if (!new BigNumber(this.balances.get(from)).gte(amount)) {
+            // Check amount.
+            throw Error("amount not enough.")
+        }
+        this.awardPool = new BigNumber(this.awardPool).sub(value)
+        this._totalSupply = new BigNumber(this._totalSupply).sub(amount)
+        this.issuedSupply = new BigNumber(this._totalSupply)
+        this.balances.set(from, (new BigNumber(this.balances.get(from))).sub(amount))
+        this.price = (new BigNumber(this.price)).sub(K.mul(amount))
 
         var sellOrder = new Order();
         sellOrder.orderId = parseInt(this.orderIndex.plus(1).toString(10));
@@ -586,8 +593,9 @@ class LostInNebulasContract extends OwnerableContract {
         sellOrder.type = "sell";
 
         this.orderList.put(this.orderIndex, sellOrder);
-        this.orderIndex = this.orderIndex.plus(1);  
-        this.sellEvent(true, from, amount, value)  
+        this.orderIndex = this.orderIndex.plus(1);
+        this.sellEvent(true, from, amount, value)
+        Blockchain.transfer(from, value)
     }
 }
 
