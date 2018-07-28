@@ -300,10 +300,14 @@ class ShareableToken extends StandardToken {
         return this.getAvailableShare(from)
     }
 
-    getClaimedProfit() {
+    getMyClaimedProfit() {
         var {
             from
         } = Blockchain.transaction
+        return this.getClaimedProfit(from)
+    }
+
+    getClaimedProfit(from) {
         return this.claimedTotalProfit.get(from) || 0
     }
 
