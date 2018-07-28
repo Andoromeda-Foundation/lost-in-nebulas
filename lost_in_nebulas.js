@@ -120,6 +120,7 @@ StandardToken.prototype = {
         var from = Blockchain.transaction.from;
         this.balances.set(from, this._totalSupply);
         this.transferEvent(true, from, from, this._totalSupply);
+
     },
 
     // Returns the name of the token
@@ -280,7 +281,7 @@ class ShareableToken extends StandardToken {
 
     getProfitPerToken() {
         if (new BigNumber(this._totalSupply).gt(0)) {
-            return (new BigNumber(this.calculateProfit)).dividedBy(this._totalSupply)
+            return (new BigNumber(this.calculateProfit)).div(this._totalSupply)
         } else {
             return new BigNumber(0);
         }
@@ -317,11 +318,13 @@ class ShareableToken extends StandardToken {
     }
 
     claimFrom(from) {
-        var current_ppt = this.getProfitPerToken()
-        var claimed_ppt = this.claimedPPT.get(from) || new BigNumber(0)
-        var delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
+        const current_ppt = this.getProfitPerToken()
+        const claimed_ppt = this.claimedPPT.get(from) || new BigNumber(0)
+        const delta_share = current_ppt.sub(claimed_ppt).mul(this.balanceOf(from));
         this.claimedPPT.set(from, current_ppt)
-        Blockchain.transfer(from, delta_share)
+        if (!Blockchain.transfer(from, delta_share.toFixed(0))) {
+            throw Error("Transfer error")
+        }
         this.claimedTotalProfit.set(from, new BigNumber(this.claimedTotalProfit.get(from) || 0).add(delta_share))
         this.claimEvent(true, from, delta_share)
     }
@@ -487,7 +490,9 @@ class LostInNebulasContract extends OwnerableContract {
     claim() {
         super.claim()
         if (this.isRoundOver() && (from == this.lastBuyer)) {
-            Blockchain.transfer(from, new BigNumber(this.bonusPool))
+            if (!Blockchain.transfer(from, new BigNumber(this.bonusPool).toFixed(0))) {
+                throw Error("Transfer error")
+            }
             this.bonusPool = new BigNumber(0)
         }
     }
@@ -495,13 +500,13 @@ class LostInNebulasContract extends OwnerableContract {
     getLastBuyer() {
         return this.lastBuyer
     }
-    
+
     getAmountByValue(value) {
         // (2p + kx)x/2 = value
         // kx^2 + 2px - 2value = 0
-        var a = K;
+        var a = new BigNumber(K);
         var b = (new BigNumber(this.price)).mul(2);
-        var c = (new BigNumber(0)).sub(value.mul(2));
+        var c = (new BigNumber(0)).sub(value).mul(2);
         var x = (new BigNumber(0)).sub(b).add(Math.floor(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).dividedBy((a.mul(2)));
 
         return x;
@@ -509,7 +514,7 @@ class LostInNebulasContract extends OwnerableContract {
 
     getValueByAmount(amount) {
         // (p + p - k*am)*am /2
-        var value = (new BigNumber(this.price)).add(this.price).sub(K.mul(amount).mul(amount).dividedBy(2));
+        var value = ((new BigNumber(this.price)).add(this.price).sub(K.mul(amount))).mul(amount).dividedBy(2);
         return value;
     }
 
@@ -599,10 +604,12 @@ class LostInNebulasContract extends OwnerableContract {
         this.bonusPool = new BigNumber(this.bonusPool).add(value.sub(profit))  // half to bonus pool
         if (referal !== "") {
             var referal_bonus = profit.dividedBy(this.referCut)
-            Blockchain.transfer(referal, referal_bonus)
+            if (!Blockchain.transfer(referal, referal_bonus.toFixed(0))) {
+                throw Error("Transfer error")
+            }
             profit = profit.sub(referal_bonus)
         }
-        this.calculateProfit = new BigNumber(this.calculateProfit).add(this.getProfitPerToken().mul(amount)).plus(profit)
+        this.calculateProfit = new BigNumber(this.calculateProfit).add(this.getProfitPerToken().mul(amount)).add(profit)
         this.profitPool = (new BigNumber(this.profitPool)).plus(profit)
 
         this._totalSupply = new BigNumber(this._totalSupply).plus(amount)
@@ -635,7 +642,7 @@ class LostInNebulasContract extends OwnerableContract {
         this.claim()
 
         amount = new BigNumber(amount)
-        var value = this.getValueByAmount(amount)
+        let value = this.getValueByAmount(amount)
         value = value.sub(value.dividedBy(this.shareCut))  // only return bonus pool
 
         if (!new BigNumber(this.balances.get(from)).gte(amount)) {
@@ -659,7 +666,9 @@ class LostInNebulasContract extends OwnerableContract {
         this.orderList.put(this.orderIndex, sellOrder);
         this.orderIndex = this.orderIndex.plus(1);
         this.sellEvent(true, from, amount, value)
-        Blockchain.transfer(from, value)
+        if (!Blockchain.transfer(from, value.toFixed(0))) {
+            throw Error("Transfer error")
+        }
     }
 }
 
