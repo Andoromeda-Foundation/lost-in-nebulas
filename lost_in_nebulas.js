@@ -508,13 +508,19 @@ class LostInNebulasContract extends OwnerableContract {
     getAmountByValue(value) {
         // (2p + kx)x/2 = value
         // kx^2 + 2px - 2value = 0
-        var a = new BigNumber(K);
-        var b = (new BigNumber(this.price)).mul(2);
-        var c = (new BigNumber(0)).sub(value).mul(2);
-        var x = (new BigNumber(0)).sub(b).add(Math.floor(Math.sqrt(b.mul(b).sub(a.mul(c).mul(4))))).dividedBy((a.mul(2)));
-
-        return x;
+        const UNIT = new BigNumber(10).pow(18)
+        var a = new BigNumber(K).div(UNIT);
+        var b = (new BigNumber(this.price)).mul(2).div(UNIT);
+        var c = (new BigNumber(0)).sub(value).mul(2).mul(UNIT);
+        var x = (new BigNumber(0)).sub(b).add(Math.floor(Math.sqrt(b.mul(b).sub((a.mul(c).mul(4)))))).div((a.mul(2)));
+        return x.toFixed(0);
     }
+
+    /*
+    (-b - [(b2 - 4ac)]
+    --
+    2a
+    */
 
     getValueByAmount(amount) {
         // (p + p - k*am)*am /2
@@ -595,10 +601,12 @@ class LostInNebulasContract extends OwnerableContract {
         }
 
         this.claim()  // claim share before every buy.
+        
+        const UNIT = new BigNumber(10).pow(18)
 
-        value = new BigNumber(value)
+        value = new BigNumber(value)        
 
-        if (value.gte(1)) {
+        if (value.gte(UNIT)) {
             this.lastBuyer = from
         }
 
